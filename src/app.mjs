@@ -1,10 +1,13 @@
 import {
   addLead,
   buildCommissionLedger,
+  buildContactLinks,
   buildDashboardMetrics,
+  buildNotificationQueue,
   buildRenewalRows,
   compareQuotes,
   fmtDate,
+  insurers,
   markCommissionPaid,
   markReminderSent,
   routeFromUrl,
@@ -23,6 +26,7 @@ const state = {
   leads: structuredClone(seedLeads),
   ledger: buildCommissionLedger(seedClients),
   reminders: {},
+  sentNotifications: {},
   renewalFilter: "30",
   quoteType: "motor",
   quoteSum: 1500000,
@@ -84,6 +88,7 @@ const navItems = [
   ["clients", "Clients", "clients"],
   ["quotes", "Quotes", "quote"],
   ["commissions", "Commissions", "wallet"],
+  ["notifications", "Notifications", "bell"],
   ["tasks", "Tasks", "tasks"],
   ["reports", "Reports", "reports"],
   ["settings", "Settings", "settings"],
@@ -100,10 +105,12 @@ const icon = {
   tasks: '<svg viewBox="0 0 24 24"><path d="M9 6h11"/><path d="M9 12h11"/><path d="M9 18h11"/><path d="m4 6 1 1 2-2"/><path d="m4 12 1 1 2-2"/><path d="m4 18 1 1 2-2"/></svg>',
   reports: '<svg viewBox="0 0 24 24"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16v-5"/><path d="M13 16V8"/><path d="M18 16v-7"/></svg>',
   settings: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.12 2.12-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1 1.55V20h-3v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06-2.12-2.12.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3v-3h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.12-2.12.06.06A1.7 1.7 0 0 0 8.3 5.4a1.7 1.7 0 0 0 1-1.55V3h3v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.12 2.12-.06.06A1.7 1.7 0 0 0 19.4 9c.25.6.84 1 1.55 1H21v3h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>',
+  bell: '<svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
 };
 
 function render() {
   const metrics = buildDashboardMetrics(state.clients, state.leads, state.ledger);
+  const notifications = buildNotificationQueue({ clients: state.clients, leads: state.leads, ledger: state.ledger });
   document.querySelector("#app").innerHTML = `
     <div class="app-shell">
       <aside class="sidebar">
@@ -117,7 +124,7 @@ function render() {
       <main class="main">
         <header class="topbar">
           <div><h1>${state.active === "dashboard" ? "Welcome back, Peter!" : titleFor(state.active)}</h1><p>${subtitleFor(state.active)}</p></div>
-          <div class="top-actions"><button class="date-btn" data-nav="reports">${icon.calendar} 6 Sep - 6 Oct 2026</button><button class="bell" data-nav="tasks" aria-label="Open tasks">!</button></div>
+          <div class="top-actions"><button class="date-btn" data-nav="reports">${icon.calendar} 6 Sep - 6 Oct 2026</button><button class="bell" data-nav="notifications" aria-label="Open notifications">${notifications.filter((item) => !state.sentNotifications[item.id]).length}</button></div>
         </header>
         <div class="notice" role="status">${state.notice}</div>
         ${state.active === "dashboard" ? dashboard(metrics) : ""}
@@ -127,6 +134,7 @@ function render() {
         ${state.active === "clients" ? clientsView() : ""}
         ${state.active === "quotes" ? quotesView() : ""}
         ${state.active === "commissions" ? commissionsView() : ""}
+        ${state.active === "notifications" ? notificationsView(notifications) : ""}
         ${state.active === "tasks" ? tasksView() : ""}
         ${state.active === "reports" ? reportsView(metrics) : ""}
         ${state.active === "settings" ? settingsView() : ""}
@@ -136,7 +144,7 @@ function render() {
 }
 
 function titleFor(id) {
-  return { leads: "Leads", pipeline: "Pipeline", renewals: "Renewals", clients: "Clients", quotes: "Quote Comparison", commissions: "Commissions", tasks: "Tasks", reports: "Reports", settings: "Settings" }[id];
+  return { leads: "Leads", pipeline: "Pipeline", renewals: "Renewals", clients: "Clients", quotes: "Quote Comparison", commissions: "Commissions", notifications: "Notifications", tasks: "Tasks", reports: "Reports", settings: "Settings" }[id];
 }
 
 function subtitleFor(id) {
@@ -150,6 +158,7 @@ function subtitleFor(id) {
     commissions: "Track what has been paid and what is still owed.",
     tasks: "Today's follow-ups and renewal actions.",
     reports: "A compact view of pipeline value, premium risk, and commissions.",
+    notifications: "Automatic reminders for expiry, referrals, renewals, and overdue commission.",
     settings: "Workspace preferences for the agent desk.",
   }[id];
 }
@@ -187,7 +196,7 @@ function dashboard(metrics) {
         <div class="panel-title">Tasks for Today <button data-nav="tasks">View all</button></div>
         ${taskList(state.tasks.slice(0, 3))}
       </article>
-      <article class="panel ai-panel"><div class="spark">*</div><strong>AI Assistant</strong><p>You have ${state.leads.filter((lead) => lead.stage === "New").length} new leads and ${metrics.renewals} upcoming renewals to act on.</p><button data-nav="leads">View Leads</button></article>
+      <article class="panel ai-panel"><div class="spark">*</div><strong>AI Assistant</strong><p>You have ${state.leads.filter((lead) => lead.stage === "New").length} new leads, ${metrics.renewals} upcoming renewals, and ${buildNotificationQueue({ clients: state.clients, leads: state.leads, ledger: state.ledger }).length} automatic alerts.</p><button data-nav="notifications">View Notifications</button></article>
     </section>`;
 }
 
@@ -238,12 +247,17 @@ function renewalsView() {
   ]))}</section>`;
 }
 
+function clientContactActions(client, label = "") {
+  const links = buildContactLinks(client, `Hello ${client.name}, this is Peter from BizYako Insurance Agent OS. I am reaching out about your insurance record.`);
+  return `<div class="contact-actions ${label ? "compact" : ""}"><a href="${links.whatsappUrl}" target="_blank" rel="noopener" data-contact="whatsapp:${client.id}">${label || "WhatsApp"}</a><a href="${links.smsUrl}" data-contact="sms:${client.id}">${label ? "SMS" : "Message"}</a></div>`;
+}
+
 function clientsView() {
   const filtered = state.clients.filter((client) => `${client.name} ${client.phone}`.toLowerCase().includes(state.clientQuery.toLowerCase()));
   const selected = state.clients.find((client) => client.id === state.selectedClientId) || filtered[0];
   return `<section class="crm-layout"><article class="panel client-list"><input class="search" value="${state.clientQuery}" placeholder="Search clients" />
-    ${filtered.map((client) => `<button data-client="${client.id}" class="${selected?.id === client.id ? "selected" : ""}"><strong>${client.name}</strong><span>${client.policies.length} policies</span></button>`).join("")}</article>
-    <article class="panel client-detail">${selected ? `<h2>${selected.name}</h2><p>${selected.phone}</p>${table(["Type", "Insurer", "Sum insured", "Premium", "Renews"], selected.policies.map((policy) => [policy.type, policy.insurer, fmtKES(policy.sumInsured), fmtKES(policy.premium), fmtDate(policy.nextRenewal)]))}<h3>Dependents</h3><p>${selected.dependents.join(", ") || "None on record"}</p><h3>Claims</h3><p>${selected.claims.map((claim) => `${fmtDate(claim.date)} - ${claim.type} (${claim.status})`).join("<br>") || "No claims filed"}</p>` : ""}</article></section>`;
+    ${filtered.map((client) => `<div class="client-list-row"><button data-client="${client.id}" class="${selected?.id === client.id ? "selected" : ""}"><strong>${client.name}</strong><span>${client.policies.length} policies</span></button>${clientContactActions(client, "WhatsApp")}</div>`).join("")}</article>
+    <article class="panel client-detail">${selected ? `<div class="client-detail-head"><div><h2>${selected.name}</h2><p>${selected.phone}</p></div>${clientContactActions(selected)}</div>${table(["Type", "Provider", "Sum insured", "Premium", "Renews"], selected.policies.map((policy) => [policy.type, policy.insurer, fmtKES(policy.sumInsured), fmtKES(policy.premium), fmtDate(policy.nextRenewal)]))}<h3>Dependents</h3><p>${selected.dependents.join(", ") || "None on record"}</p><h3>Claims</h3><p>${selected.claims.map((claim) => `${fmtDate(claim.date)} - ${claim.type} (${claim.status})`).join("<br>") || "No claims filed"}</p>` : ""}</article></section>`;
 }
 
 function quotesView() {
@@ -264,6 +278,15 @@ function commissionsView() {
   ]))}</section>`;
 }
 
+function notificationActions(item) {
+  const client = state.clients.find((record) => record.id === item.clientId);
+  return client ? clientContactActions(client) : "";
+}
+
+function notificationsView(notifications) {
+  const rows = notifications.map((item) => `<article class="notification-card ${item.urgency}"><div><small>${item.type.replaceAll("_", " ")}</small><strong>${item.title}</strong><p>${item.detail}</p><span>Parties: ${item.relevantParties.join(", ")}</span>${notificationActions(item)}</div><button data-notification="${item.id}">${state.sentNotifications[item.id] ? "Sent" : "Mark sent"}</button></article>`).join("");
+  return `<section class="notification-grid"><article class="panel notification-summary"><div class="panel-title">Automatic Notification Rules</div><div class="rule-list"><span>Policy expiry alerts for overdue policies</span><span>Renewal reminders from today through 30 days</span><span>Referral follow-up prompts for active referred leads</span><span>Commission follow-up for overdue provider payments</span></div></article><article class="panel"><div class="panel-title">Notification Queue</div>${rows || '<div class="empty">No notifications require action.</div>'}</article></section>`;
+}
 function tasksView() {
   return `<section class="panel">${taskList(state.tasks)}</section>`;
 }
@@ -296,6 +319,8 @@ function bindEvents() {
   document.querySelectorAll("[data-client]").forEach((el) => el.addEventListener("click", () => { state.selectedClientId = el.dataset.client; state.notice = "Client profile opened."; render(); }));
   document.querySelector(".search")?.addEventListener("input", (event) => { state.clientQuery = event.target.value; render(); });
   document.querySelectorAll("[data-setting]").forEach((el) => el.addEventListener("change", () => { state.settings = updateSetting(state.settings, el.dataset.setting, el.checked); state.notice = "Settings updated."; render(); }));
+  document.querySelectorAll("[data-notification]").forEach((el) => el.addEventListener("click", () => { state.sentNotifications = { ...state.sentNotifications, [el.dataset.notification]: true }; state.notice = "Notification marked sent."; render(); }));
+  document.querySelectorAll("[data-contact]").forEach((el) => el.addEventListener("click", () => { const [channel] = el.dataset.contact.split(":"); state.notice = `${channel === "sms" ? "SMS" : "WhatsApp"} composer opened.`; }));
   document.querySelector(".lead-form")?.addEventListener("submit", (event) => {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(event.currentTarget));

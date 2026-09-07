@@ -4,6 +4,8 @@ import {
   buildDashboardMetrics,
   buildRenewalRows,
   buildCommissionLedger,
+  buildContactLinks,
+  buildNotificationQueue,
   compareQuotes,
   markCommissionPaid,
   markReminderSent,
@@ -91,4 +93,22 @@ test("browser routes normalize valid tabs and fall back to dashboard", () => {
   assert.equal(normalizeRoute("missing"), "dashboard");
   assert.equal(routeFromUrl("https://example.test/?view=clients"), "clients");
   assert.equal(routeFromUrl("https://example.test/?view=not-real"), "dashboard");
+});
+test("contact links format Kenyan phone numbers for WhatsApp and SMS", () => {
+  const links = buildContactLinks(seedClients[0], "Your policy renewal is due soon");
+
+  assert.equal(links.phoneE164, "+254722118402");
+  assert.equal(links.whatsappUrl.startsWith("https://wa.me/254722118402?text="), true);
+  assert.equal(links.smsUrl.startsWith("sms:+254722118402?body="), true);
+});
+
+test("notification queue covers renewals, expiries, referrals, providers, and commissions", () => {
+  const ledger = buildCommissionLedger(seedClients);
+  const notifications = buildNotificationQueue({ clients: seedClients, leads: seedLeads, ledger });
+
+  assert.equal(notifications.some((item) => item.type === "policy_expired"), true);
+  assert.equal(notifications.some((item) => item.type === "policy_renewal"), true);
+  assert.equal(notifications.some((item) => item.type === "referral_follow_up"), true);
+  assert.equal(notifications.some((item) => item.type === "commission_overdue"), true);
+  assert.equal(notifications.some((item) => item.relevantParties.includes("Britam")), true);
 });

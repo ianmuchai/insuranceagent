@@ -1,4 +1,4 @@
-export const appRoutes = ["dashboard", "leads", "pipeline", "renewals", "clients", "quotes", "commissions", "tasks", "reports", "settings"];
+export const appRoutes = ["dashboard", "leads", "pipeline", "renewals", "clients", "quotes", "commissions", "notifications", "tasks", "reports", "settings"];
 
 export function normalizeRoute(route) {
   return appRoutes.includes(route) ? route : "dashboard";
@@ -249,4 +249,65 @@ export function toggleTask(tasks, id, done) {
 
 export function updateSetting(settings, key, value) {
   return { ...settings, [key]: value };
+}
+export function normalizeKenyanPhone(phone) {
+  const digits = String(phone).replace(/\D/g, "");
+  if (digits.startsWith("254")) return `+${digits}`;
+  if (digits.startsWith("0")) return `+254${digits.slice(1)}`;
+  return `+${digits}`;
+}
+
+export function buildContactLinks(client, message = "") {
+  const phoneE164 = normalizeKenyanPhone(client.phone);
+  const phoneDigits = phoneE164.replace(/\D/g, "");
+  const encoded = encodeURIComponent(message);
+  return {
+    phoneE164,
+    whatsappUrl: `https://wa.me/${phoneDigits}${encoded ? `?text=${encoded}` : ""}`,
+    smsUrl: `sms:${phoneE164}${encoded ? `?body=${encoded}` : ""}`,
+  };
+}
+
+export function buildNotificationQueue({ clients, leads, ledger }, today = TODAY) {
+  const policyNotifications = buildRenewalRows(clients, today)
+    .filter((policy) => policy.daysLeft <= 30)
+    .map((policy) => ({
+      id: policy.daysLeft < 0 ? `expired-${policy.id}` : `renewal-${policy.id}`,
+      type: policy.daysLeft < 0 ? "policy_expired" : "policy_renewal",
+      title: policy.daysLeft < 0 ? `${policy.clientName} policy expired` : `${policy.clientName} renewal due`,
+      detail: `${policy.type} policy with ${policy.insurer} ${policy.daysLeft < 0 ? `expired ${Math.abs(policy.daysLeft)} days ago` : `renews in ${policy.daysLeft} days`}.`,
+      urgency: policy.daysLeft < 0 ? "high" : policy.daysLeft <= 7 ? "high" : "medium",
+      relevantParties: ["Agent", "Client", policy.insurer],
+      clientId: policy.clientId,
+      policyId: policy.id,
+    }));
+
+  const referralNotifications = leads
+    .filter((lead) => lead.source === "Referral" && lead.stage !== "Won")
+    .map((lead) => ({
+      id: `referral-${lead.id}`,
+      type: "referral_follow_up",
+      title: `${lead.name} referral needs follow-up`,
+      detail: `${lead.product} lead is still in ${lead.stage}.`,
+      urgency: "medium",
+      relevantParties: ["Agent", "Referral partner", lead.name],
+      leadId: lead.id,
+    }));
+
+  const commissionNotifications = ledger
+    .filter((row) => row.status === "Overdue")
+    .map((row) => ({
+      id: `commission-${row.id}`,
+      type: "commission_overdue",
+      title: `${row.insurer} commission overdue`,
+      detail: `${row.clientName} ${row.policyType} commission of ${fmtKES(row.expected)} is unpaid.`,
+      urgency: "medium",
+      relevantParties: ["Agent", row.insurer],
+      commissionId: row.id,
+    }));
+
+  return [...policyNotifications, ...referralNotifications, ...commissionNotifications].sort((a, b) => {
+    const rank = { high: 0, medium: 1, low: 2 };
+    return rank[a.urgency] - rank[b.urgency] || a.title.localeCompare(b.title);
+  });
 }

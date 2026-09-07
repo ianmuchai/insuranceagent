@@ -1,3 +1,14 @@
+export const appRoutes = ["dashboard", "leads", "pipeline", "renewals", "clients", "quotes", "commissions", "tasks", "reports", "settings"];
+
+export function normalizeRoute(route) {
+  return appRoutes.includes(route) ? route : "dashboard";
+}
+
+export function routeFromUrl(url) {
+  const parsed = new URL(url, "https://bizyako.local");
+  return normalizeRoute(parsed.searchParams.get("view") || "dashboard");
+}
+
 export const TODAY = new Date(2026, 8, 6);
 
 export const insurers = [

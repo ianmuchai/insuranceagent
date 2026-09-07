@@ -7,6 +7,7 @@ import {
   fmtDate,
   markCommissionPaid,
   markReminderSent,
+  routeFromUrl,
   fmtKES,
   moveLeadStage,
   pipelineStages,
@@ -17,7 +18,7 @@ import {
 } from "./insuranceCore.mjs";
 
 const state = {
-  active: "dashboard",
+  active: routeFromUrl(globalThis.location?.href || "https://bizyako.local/"),
   clients: structuredClone(seedClients),
   leads: structuredClone(seedLeads),
   ledger: buildCommissionLedger(seedClients),
@@ -42,6 +43,39 @@ const state = {
   notice: "All systems ready.",
 };
 
+function routeUrl(route) {
+  const url = new URL(globalThis.location?.href || "https://bizyako.local/");
+  if (route === "dashboard") {
+    url.searchParams.delete("view");
+  } else {
+    url.searchParams.set("view", route);
+  }
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+function navigateTo(route, options = {}) {
+  state.active = route;
+  if (globalThis.history) {
+    const nextUrl = routeUrl(route);
+    if (options.replace) {
+      globalThis.history.replaceState({ view: route }, "", nextUrl);
+    } else {
+      globalThis.history.pushState({ view: route }, "", nextUrl);
+    }
+  }
+  render();
+}
+
+if (globalThis.history) {
+  globalThis.history.replaceState({ view: state.active }, "", routeUrl(state.active));
+}
+
+if (globalThis.addEventListener) {
+  globalThis.addEventListener("popstate", () => {
+    state.active = routeFromUrl(globalThis.location.href);
+    render();
+  });
+}
 const navItems = [
   ["dashboard", "Dashboard", "home"],
   ["leads", "Leads", "users"],
@@ -253,7 +287,7 @@ function table(headers, rows) {
 }
 
 function bindEvents() {
-  document.querySelectorAll("[data-nav]").forEach((el) => el.addEventListener("click", () => { state.active = el.dataset.nav; render(); }));
+  document.querySelectorAll("[data-nav]").forEach((el) => el.addEventListener("click", () => { navigateTo(el.dataset.nav); }));
   document.querySelectorAll("[data-move]").forEach((el) => el.addEventListener("click", () => { state.leads = moveLeadStage(state.leads, el.dataset.move, Number(el.dataset.dir)); state.notice = "Lead moved."; render(); }));
   document.querySelectorAll("[data-renewal-filter]").forEach((el) => el.addEventListener("click", () => { state.renewalFilter = el.dataset.renewalFilter; render(); }));
   document.querySelectorAll("[data-reminder]").forEach((el) => el.addEventListener("click", () => { const [policyId, channel] = el.dataset.reminder.split(":"); state.reminders = markReminderSent(state.reminders, policyId, channel); state.notice = `${channel.toUpperCase()} reminder queued.`; render(); }));

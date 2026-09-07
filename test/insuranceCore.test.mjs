@@ -7,6 +7,8 @@ import {
   compareQuotes,
   markCommissionPaid,
   markReminderSent,
+  normalizeRoute,
+  routeFromUrl,
   moveLeadStage,
   addLead,
   seedClients,
@@ -83,4 +85,10 @@ test("client actions update reminders, commissions, tasks, and settings immutabl
   assert.equal(ledger.find((row) => row.id === "cm-p8").paid, ledger.find((row) => row.id === "cm-p8").expected);
   assert.deepEqual(tasks, [{ id: "t1", done: true }]);
   assert.deepEqual(settings, { smsReminders: false });
+});
+test("browser routes normalize valid tabs and fall back to dashboard", () => {
+  assert.equal(normalizeRoute("renewals"), "renewals");
+  assert.equal(normalizeRoute("missing"), "dashboard");
+  assert.equal(routeFromUrl("https://example.test/?view=clients"), "clients");
+  assert.equal(routeFromUrl("https://example.test/?view=not-real"), "dashboard");
 });

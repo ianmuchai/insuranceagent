@@ -1,0 +1,11 @@
+{
+  "name": "bizyako-insurance-agent-os",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "dev": "python -m http.server 5173 --bind 127.0.0.1"
+  }
+}
+

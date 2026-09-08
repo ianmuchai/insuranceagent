@@ -253,14 +253,19 @@ function pipelineView() {
 function renewalsView() {
   const rows = buildRenewalRows(state.clients).filter((row) => state.renewalFilter === "all" || (state.renewalFilter === "overdue" && row.daysLeft < 0) || (row.daysLeft >= 0 && row.daysLeft <= Number(state.renewalFilter)));
   const filters = [["7", "Next 7 days"], ["14", "Next 14 days"], ["30", "Next 30 days"], ["overdue", "Overdue"], ["all", "All"]];
-  return `<section class="panel"><div class="filters">${filters.map(([filter, label]) => `<button class="${state.renewalFilter === filter ? "selected" : ""}" data-renewal-filter="${filter}">${label}</button>`).join("")}</div>${table(["Client", "Policy", "Insurer", "Premium", "Renews", "Reminder"], rows.map((row) => [
+  return `<section class="panel"><div class="filters">${filters.map(([filter, label]) => `<button class="${state.renewalFilter === filter ? "selected" : ""}" data-renewal-filter="${filter}">${label}</button>`).join("")}</div>${table(["Client", "Policy", "Insurer", "Premium", "Renews", "Days", "Status", "Reminder"], rows.map((row) => {
+    const status = renewalStatus(row.daysLeft);
+    return [
     `<strong>${row.clientName}</strong><small>${row.phone}</small>`,
     row.type,
     row.insurer,
     fmtKES(row.premium),
-    `<span>${fmtDate(row.nextRenewal)}</span><b class="${renewalStatus(row.daysLeft).tone}">${renewalStatus(row.daysLeft).label}</b><small>${renewalStatus(row.daysLeft).tone === "danger" ? "Action needed" : renewalStatus(row.daysLeft).tone === "warn" ? "Watch" : "Healthy"}</small>`,
+    fmtDate(row.nextRenewal),
+    `<b class="${status.tone}">${status.label}</b>`,
+    `<span class="status-text ${status.tone}">${status.tone === "danger" ? "Action needed" : status.tone === "warn" ? "Watch" : "Healthy"}</span>`,
     `<div class="action-stack"><button data-reminder="${row.id}:sms">${state.reminders[`${row.id}:sms`] ? "SMS sent" : "Send SMS"}</button><button data-reminder="${row.id}:email">${state.reminders[`${row.id}:email`] ? "Email sent" : "Send email"}</button></div>`,
-  ]))}</section>`;
+    ];
+  }))}</section>`;
 }
 
 function clientContactActions(client, label = "") {

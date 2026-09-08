@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 test("renewals table separates renewal date, days, and status columns", async () => {
   globalThis.location = { href: "https://bizyako.local/?view=renewals" };
@@ -61,4 +62,25 @@ test("sidebar tabs render route-specific color classes", async () => {
   assert.equal(app.innerHTML.includes('nav-item nav-dashboard active'), true);
   assert.equal(app.innerHTML.includes('nav-item nav-leads'), true);
   assert.equal(app.innerHTML.includes('nav-item nav-renewals'), true);
+});
+test("sidebar tab colors use unique vibrant spectrum values", () => {
+  const css = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+  const matches = [...css.matchAll(/\.nav-[a-z]+ \{ --tab-color: (#(?:[0-9a-fA-F]{6})); \}/g)];
+  const colors = matches.map((match) => match[1].toLowerCase());
+
+  assert.equal(colors.length, 11);
+  assert.equal(new Set(colors).size, 11);
+  assert.deepEqual(colors, [
+    "#00e676",
+    "#00b0ff",
+    "#7c4dff",
+    "#ffab00",
+    "#00e5ff",
+    "#536dfe",
+    "#ff4081",
+    "#ff1744",
+    "#18ffff",
+    "#76ff03",
+    "#ffea00",
+  ]);
 });

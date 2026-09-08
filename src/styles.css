@@ -340,35 +340,41 @@ td { border-bottom: 1px solid var(--line); padding: 10px 9px; vertical-align: mi
   margin-right: 10px;
   cursor: pointer;
 }
-.nav-dashboard { --tab-color: #20b35d; }
-.nav-leads { --tab-color: #3478f6; }
-.nav-pipeline { --tab-color: #7657e8; }
-.nav-renewals { --tab-color: #f59e0b; }
-.nav-clients { --tab-color: #14b8a6; }
-.nav-quotes { --tab-color: #6366f1; }
-.nav-commissions { --tab-color: #ec4899; }
-.nav-notifications { --tab-color: #ef4444; }
-.nav-tasks { --tab-color: #0ea5e9; }
-.nav-reports { --tab-color: #22c55e; }
-.nav-settings { --tab-color: #94a3b8; }
+.nav-dashboard { --tab-color: #00e676; }
+.nav-leads { --tab-color: #00b0ff; }
+.nav-pipeline { --tab-color: #7c4dff; }
+.nav-renewals { --tab-color: #ffab00; }
+.nav-clients { --tab-color: #00e5ff; }
+.nav-quotes { --tab-color: #536dfe; }
+.nav-commissions { --tab-color: #ff4081; }
+.nav-notifications { --tab-color: #ff1744; }
+.nav-tasks { --tab-color: #18ffff; }
+.nav-reports { --tab-color: #76ff03; }
+.nav-settings { --tab-color: #ffea00; }
 .nav-item {
-  border-left: 4px solid transparent;
+  border-left: 5px solid var(--tab-color);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tab-color) 32%, transparent);
 }
 .nav-item svg {
   color: var(--tab-color);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--tab-color) 70%, transparent));
 }
 .nav-item:not(.active) {
-  background: color-mix(in srgb, var(--tab-color) 12%, transparent);
+  color: #f8fafc;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--tab-color) 34%, rgba(255,255,255,.04)), rgba(255,255,255,.045));
 }
 .nav-item:not(.active):hover {
   color: white;
-  border-left-color: var(--tab-color);
-  background: color-mix(in srgb, var(--tab-color) 22%, rgba(255,255,255,.08));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--tab-color) 58%, rgba(255,255,255,.08)), rgba(255,255,255,.1));
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--tab-color) 24%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--tab-color) 70%, transparent);
 }
 .nav-item.active {
+  color: #061021;
   border-left-color: #ffffff;
-  background: linear-gradient(135deg, var(--tab-color), color-mix(in srgb, var(--tab-color) 72%, #07152d));
+  background: linear-gradient(135deg, var(--tab-color), color-mix(in srgb, var(--tab-color) 72%, #ffffff));
+  box-shadow: 0 14px 30px color-mix(in srgb, var(--tab-color) 30%, transparent);
 }
 .nav-item.active svg {
-  color: white;
+  color: #061021;
 }
+

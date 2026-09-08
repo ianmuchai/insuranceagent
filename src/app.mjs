@@ -252,7 +252,7 @@ function pipelineView() {
     <article class="kanban-col"><div class="kanban-title">${stage} (${state.leads.filter((lead) => lead.stage === stage).length})</div>
       ${state.leads.filter((lead) => lead.stage === stage).map((lead) => `
         <div class="lead-card"><strong>${lead.name}</strong><span>${lead.product}</span><small>${lead.lastContact}</small>
-          <div><button data-move="${lead.id}" data-dir="-1" aria-label="Move lead back">&lt;</button><button data-move="${lead.id}" data-dir="1" aria-label="Move lead forward">&gt;</button></div>
+          <div><button data-move="${lead.id}" data-dir="-1" aria-label="Move lead back">back</button><button data-move="${lead.id}" data-dir="1" aria-label="Move lead forward">next</button></div>
         </div>`).join("") || '<div class="empty">Empty</div>'}
     </article>`).join("")}</section>`;
 }
@@ -400,8 +400,4 @@ function bindEvents() {
 }
 
 render();
-
-
-
-
 

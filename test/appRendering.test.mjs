@@ -84,3 +84,20 @@ test("sidebar tab colors use unique vibrant spectrum values", () => {
     "#ffea00",
   ]);
 });
+test("pipeline movement controls use word labels", async () => {
+  globalThis.location = { href: "https://bizyako.local/?view=pipeline" };
+  globalThis.history = { replaceState() {}, pushState() {} };
+  globalThis.addEventListener = () => {};
+  const app = { innerHTML: "" };
+  globalThis.document = {
+    querySelector: (selector) => (selector === "#app" ? app : null),
+    querySelectorAll: () => [],
+  };
+
+  await import(`../src/app.mjs?case=${Date.now()}-pipeline-buttons`);
+
+  assert.equal(app.innerHTML.includes('data-dir="-1" aria-label="Move lead back">back</button>'), true);
+  assert.equal(app.innerHTML.includes('data-dir="1" aria-label="Move lead forward">next</button>'), true);
+  assert.equal(app.innerHTML.includes('&lt;</button>'), false);
+  assert.equal(app.innerHTML.includes('&gt;</button>'), false);
+});

@@ -1,5 +1,7 @@
 import {
   addLead,
+  importLeadRows,
+  parseCsvRows,
   buildCommissionLedger,
   buildContactLinks,
   buildDashboardMetrics,
@@ -51,6 +53,7 @@ const state = {
     quoteSummaries: false,
   },
   notice: "All systems ready.",
+  uploadSummary: "CSV, XLS, and XLSX lead uploads are ready.",
 };
 
 function routeUrl(route) {
@@ -131,7 +134,7 @@ function render() {
       <aside class="sidebar">
         <div class="brand"><span>Biz<span>Yako</span></span></div>
         <nav>${navItems.map(([id, label, key]) => `
-          <button class="nav-item ${state.active === id ? "active" : ""}" data-nav="${id}">
+          <button class="nav-item nav-${id} ${state.active === id ? "active" : ""}" data-nav="${id}">
             ${icon[key]}<span>${label}</span>
           </button>`).join("")}</nav>
         <button class="agent-card" data-profile-toggle><div class="avatar">${state.agentProfile.name.charAt(0).toUpperCase()}</div><div><strong>${state.agentProfile.name}</strong><small>${state.agentProfile.role} - Edit profile</small></div></button>
@@ -140,7 +143,7 @@ function render() {
       <main class="main">
         <header class="topbar">
           <div><h1>${state.active === "dashboard" ? "Welcome back, Peter!" : titleFor(state.active)}</h1><p>${subtitleFor(state.active)}</p></div>
-          <div class="top-actions"><button class="arrow-btn" data-history="back" aria-label="Back">Back</button><button class="arrow-btn" data-history="next" aria-label="Next">Next</button><button class="date-btn" data-nav="reports">${icon.calendar} 6 Sep - 6 Oct 2026</button><button class="bell" data-nav="notifications" aria-label="Open notifications">${notifications.filter((item) => !state.sentNotifications[item.id]).length}</button></div>
+          <div class="top-actions"><button class="arrow-btn" data-history="back" aria-label="back">back</button><button class="arrow-btn" data-history="next" aria-label="next">next</button><button class="date-btn" data-nav="reports">${icon.calendar} 6 Sep - 6 Oct 2026</button><button class="bell" data-nav="notifications" aria-label="Open notifications">${notifications.filter((item) => !state.sentNotifications[item.id]).length}</button></div>
         </header>
         <div class="notice" role="status">${state.notice}</div>
         ${state.active === "dashboard" ? dashboard(metrics) : ""}
@@ -233,9 +236,13 @@ function leadsView() {
       <input name="source" placeholder="Source e.g. WhatsApp" />
       <button class="primary" type="submit">Add lead</button>
     </form>
+    <div class="upload-box">
+      <label for="lead-upload"><strong>Upload leads</strong><span>CSV or Excel with Name, Phone, Email, Insurance Need, Premium, Source.</span></label>
+      <input id="lead-upload" class="lead-upload" type="file" accept=".csv,.xls,.xlsx" />
+      <small>${state.uploadSummary}</small>
+    </div>
   </article><article class="panel"><div class="panel-title">Recent Leads</div>${state.leads.map(leadRow).join("")}</article></section>`;
 }
-
 function leadRow(lead) {
   return `<div class="data-row"><div><strong>${lead.name}</strong><span>${lead.product}</span></div><div><b>${fmtKES(lead.value)}</b><small>${lead.stage}</small></div></div>`;
 }
@@ -330,6 +337,15 @@ function table(headers, rows) {
   return `<div class="table-wrap"><table><thead><tr>${headers.map((head) => `<th>${head}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
 
+async function parseLeadUploadFile(file) {
+  const extension = file.name.split(".").pop().toLowerCase();
+  if (extension === "csv") return parseCsvRows(await file.text());
+  const sheetApi = globalThis.XLSX;
+  if (!sheetApi) throw new Error("Excel parser is still loading. Try again in a moment or upload CSV.");
+  const workbook = sheetApi.read(await file.arrayBuffer(), { type: "array" });
+  const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+  return sheetApi.utils.sheet_to_json(firstSheet, { defval: "" });
+}
 function bindEvents() {
   document.querySelectorAll("[data-nav]").forEach((el) => el.addEventListener("click", () => { navigateTo(el.dataset.nav); }));
   document.querySelectorAll("[data-history]").forEach((el) => el.addEventListener("click", () => { stepRoute(el.dataset.history === "next" ? 1 : -1); }));
@@ -348,6 +364,21 @@ function bindEvents() {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(event.currentTarget));
     if (data.name.trim()) { state.leads = addLead(state.leads, data); state.notice = "Lead added to pipeline."; }
+    render();
+  });
+  document.querySelector(".lead-upload")?.addEventListener("change", async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const rows = await parseLeadUploadFile(file);
+      const result = importLeadRows(state.leads, rows);
+      state.leads = result.leads;
+      state.uploadSummary = `${file.name}: ${result.added} imported, ${result.skipped} skipped.`;
+      state.notice = result.added ? "Uploaded leads added to pipeline." : "No new leads found in upload.";
+    } catch (error) {
+      state.uploadSummary = error.message;
+      state.notice = "Lead upload could not be processed.";
+    }
     render();
   });
   document.querySelector(".profile-editor")?.addEventListener("submit", (event) => {
@@ -369,4 +400,8 @@ function bindEvents() {
 }
 
 render();
+
+
+
+
 

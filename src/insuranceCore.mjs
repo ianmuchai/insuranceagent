@@ -206,18 +206,100 @@ export function moveLeadStage(leads, id, direction) {
 
 export function addLead(leads, lead) {
   const maxId = leads.reduce((max, item) => Math.max(max, Number(item.id.replace(/\D/g, "")) || 0), 0);
-  return [
-    ...leads,
-    {
-      id: `l${maxId + 1}`,
-      name: lead.name.trim(),
-      product: lead.product?.trim() || "Not specified",
-      value: Number(lead.value) || 0,
-      source: lead.source?.trim() || "Manual",
-      stage: "New",
-      lastContact: "Just now",
-    },
-  ];
+  const nextLead = {
+    id: `l${maxId + 1}`,
+    name: lead.name.trim(),
+    product: lead.product?.trim() || "Not specified",
+    value: parseMoney(lead.value),
+    source: lead.source?.trim() || "Manual",
+    stage: "New",
+    lastContact: "Just now",
+  };
+  if (lead.phone?.trim()) nextLead.phone = lead.phone.trim();
+  if (lead.email?.trim()) nextLead.email = lead.email.trim();
+  if (lead.assignedTo?.trim()) nextLead.assignedTo = lead.assignedTo.trim();
+  if (lead.notes?.trim()) nextLead.notes = lead.notes.trim();
+  return [...leads, nextLead];
+}
+
+function parseMoney(value) {
+  return Number(String(value ?? "").replace(/[^0-9.-]/g, "")) || 0;
+}
+
+function normalizeHeader(header) {
+  return String(header ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function rowValue(row, names) {
+  const normalized = Object.fromEntries(Object.entries(row).map(([key, value]) => [normalizeHeader(key), value]));
+  return names.map(normalizeHeader).map((key) => normalized[key]).find((value) => String(value ?? "").trim());
+}
+
+export function normalizeLeadRow(row) {
+  const name = rowValue(row, ["name", "client", "client name", "customer", "full name"]);
+  if (!String(name ?? "").trim()) return null;
+  return {
+    name: String(name).trim(),
+    phone: String(rowValue(row, ["phone", "mobile", "phone number", "telephone", "contact"]) ?? "").trim(),
+    email: String(rowValue(row, ["email", "email address", "mail"]) ?? "").trim(),
+    product: String(rowValue(row, ["product", "policy", "policy type", "insurance need", "cover", "insurance"]) ?? "Not specified").trim(),
+    value: parseMoney(rowValue(row, ["value", "premium", "estimated premium", "estimate", "amount"])),
+    source: String(rowValue(row, ["source", "lead source", "channel"]) ?? "Upload").trim(),
+    assignedTo: String(rowValue(row, ["assigned to", "assigned", "agent", "employee"]) ?? "").trim(),
+    notes: String(rowValue(row, ["notes", "comment", "remarks"]) ?? "").trim(),
+  };
+}
+
+function leadIdentityKeys(lead) {
+  const phone = String(lead.phone ?? "").replace(/\D/g, "");
+  const email = String(lead.email ?? "").trim().toLowerCase();
+  const name = String(lead.name ?? "").trim().toLowerCase();
+  return [phone && `phone:${phone}`, email && `email:${email}`, name && `name:${name}`].filter(Boolean);
+}
+
+export function importLeadRows(leads, rows) {
+  const seen = new Set(leads.flatMap(leadIdentityKeys));
+  return rows.reduce((result, row) => {
+    const lead = normalizeLeadRow(row);
+    if (!lead) return { ...result, skipped: result.skipped + 1 };
+    const identityKeys = leadIdentityKeys(lead);
+    if (identityKeys.some((key) => seen.has(key))) return { ...result, skipped: result.skipped + 1 };
+    identityKeys.forEach((key) => seen.add(key));
+    return { leads: addLead(result.leads, lead), added: result.added + 1, skipped: result.skipped };
+  }, { leads, added: 0, skipped: 0 });
+}
+
+export function parseCsvRows(text) {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let quoted = false;
+  const input = String(text ?? "").replace(/^\uFEFF/, "");
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
+    const next = input[index + 1];
+    if (char === '"' && quoted && next === '"') {
+      cell += '"';
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === "," && !quoted) {
+      row.push(cell.trim());
+      cell = "";
+    } else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && next === "\n") index += 1;
+      row.push(cell.trim());
+      if (row.some((value) => value !== "")) rows.push(row);
+      row = [];
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+  row.push(cell.trim());
+  if (row.some((value) => value !== "")) rows.push(row);
+  const headers = rows.shift() || [];
+  return rows.map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""])));
 }
 
 export function buildDashboardMetrics(clients, leads, ledger) {
@@ -350,3 +432,4 @@ export function updateAgentProfile(profile, changes) {
     role,
   };
 }
+

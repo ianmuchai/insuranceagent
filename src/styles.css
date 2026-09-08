@@ -304,3 +304,71 @@ td { border-bottom: 1px solid var(--line); padding: 10px 9px; vertical-align: mi
 .primary.alt { background: linear-gradient(135deg, var(--violet), #4f46e5); }
 @media (max-width: 1180px) { .app-shell { grid-template-columns: 230px 1fr; } }
 @media (max-width: 780px) { .app-shell { display: block; } .top-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.upload-box {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+  border: 1px dashed #93c5fd;
+  border-radius: 8px;
+  padding: 14px;
+  background: #eff6ff;
+}
+.upload-box label {
+  display: grid;
+  gap: 4px;
+  color: #1e3a8a;
+  font-size: 13px;
+}
+.upload-box label span,
+.upload-box small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.lead-upload {
+  min-height: 44px;
+  background: white;
+  cursor: pointer;
+}
+.lead-upload::file-selector-button {
+  border: 0;
+  border-radius: 6px;
+  background: var(--blue);
+  color: white;
+  font-weight: 800;
+  padding: 8px 10px;
+  margin-right: 10px;
+  cursor: pointer;
+}
+.nav-dashboard { --tab-color: #20b35d; }
+.nav-leads { --tab-color: #3478f6; }
+.nav-pipeline { --tab-color: #7657e8; }
+.nav-renewals { --tab-color: #f59e0b; }
+.nav-clients { --tab-color: #14b8a6; }
+.nav-quotes { --tab-color: #6366f1; }
+.nav-commissions { --tab-color: #ec4899; }
+.nav-notifications { --tab-color: #ef4444; }
+.nav-tasks { --tab-color: #0ea5e9; }
+.nav-reports { --tab-color: #22c55e; }
+.nav-settings { --tab-color: #94a3b8; }
+.nav-item {
+  border-left: 4px solid transparent;
+}
+.nav-item svg {
+  color: var(--tab-color);
+}
+.nav-item:not(.active) {
+  background: color-mix(in srgb, var(--tab-color) 12%, transparent);
+}
+.nav-item:not(.active):hover {
+  color: white;
+  border-left-color: var(--tab-color);
+  background: color-mix(in srgb, var(--tab-color) 22%, rgba(255,255,255,.08));
+}
+.nav-item.active {
+  border-left-color: #ffffff;
+  background: linear-gradient(135deg, var(--tab-color), color-mix(in srgb, var(--tab-color) 72%, #07152d));
+}
+.nav-item.active svg {
+  color: white;
+}

@@ -15,6 +15,8 @@ import {
   renewalStatus,
   moveLeadStage,
   addLead,
+  importLeadRows,
+  parseCsvRows,
   seedClients,
   seedLeads,
   seedEmployees,
@@ -80,6 +82,45 @@ test("new leads receive a stable next id and default to New stage", () => {
 });
 
 
+test("csv lead uploads parse quoted values and populate normalized leads", () => {
+  const rows = parseCsvRows(`Name,Phone,Email,Insurance Need,Estimated Premium,Source,Assigned To\n"Mary Akinyi","+254 722 000 111",mary@example.com,"Motor, private car",95000,Referral,e2`);
+  const result = importLeadRows(seedLeads, rows);
+
+  assert.equal(result.added, 1);
+  assert.equal(result.skipped, 0);
+  assert.deepEqual(result.leads.at(-1), {
+    id: "l7",
+    name: "Mary Akinyi",
+    phone: "+254 722 000 111",
+    email: "mary@example.com",
+    product: "Motor, private car",
+    value: 95000,
+    source: "Referral",
+    stage: "New",
+    lastContact: "Just now",
+    assignedTo: "e2",
+  });
+});
+
+test("lead uploads skip duplicate contacts while importing new rows", () => {
+  const current = addLead(seedLeads, {
+    name: "Mary Akinyi",
+    phone: "0722 000 111",
+    email: "mary@example.com",
+    product: "Medical",
+  });
+  const result = importLeadRows(current, [
+    { name: "Mary Akinyi", phone: "0722 000 111", product: "Motor" },
+    { name: "Mary Akinyi", phone: "0711 999 888", email: "mary@example.com", product: "Life" },
+    { client: "David Ouma", mobile: "0733 222 333", policy: "Life", premium: "120,000", source: "Website" },
+  ]);
+
+  assert.equal(result.added, 1);
+  assert.equal(result.skipped, 2);
+  assert.equal(result.leads.at(-1).name, "David Ouma");
+  assert.equal(result.leads.at(-1).value, 120000);
+});
+
 test("client actions update reminders, commissions, tasks, and settings immutably", () => {
   const reminders = markReminderSent({}, "p1", "sms");
   const ledger = markCommissionPaid(buildCommissionLedger(seedClients), "cm-p8");
@@ -139,3 +180,6 @@ test("agent profile can update display name and role", () => {
 
   assert.deepEqual(profile, { name: "Mary Admin", role: "Admin" });
 });
+
+
+

@@ -143,7 +143,7 @@ function render() {
       <main class="main">
         <header class="topbar">
           <div><h1>${state.active === "dashboard" ? "Welcome back, Peter!" : titleFor(state.active)}</h1><p>${subtitleFor(state.active)}</p></div>
-          <div class="top-actions"><button class="arrow-btn" data-history="back" aria-label="back">back</button><button class="arrow-btn" data-history="next" aria-label="next">next</button><button class="date-btn" data-nav="reports">${icon.calendar} 6 Sep - 6 Oct 2026</button><button class="bell" data-nav="notifications" aria-label="Open notifications">${notifications.filter((item) => !state.sentNotifications[item.id]).length}</button></div>
+          <div class="top-actions">${state.active === "dashboard" ? "" : `<button class="arrow-btn" data-history="back" aria-label="back">back</button><button class="arrow-btn" data-history="next" aria-label="next">next</button>`}<button class="date-btn" data-nav="reports">${icon.calendar} 6 Sep - 6 Oct 2026</button><button class="bell" data-nav="notifications" aria-label="Open notifications">${notifications.filter((item) => !state.sentNotifications[item.id]).length}</button></div>
         </header>
         <div class="notice" role="status">${state.notice}</div>
         ${state.active === "dashboard" ? dashboard(metrics) : ""}

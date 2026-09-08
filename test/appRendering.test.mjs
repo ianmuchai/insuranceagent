@@ -32,7 +32,7 @@ test("leads page exposes csv and excel upload control", async () => {
   assert.equal(app.innerHTML.includes('accept=".csv,.xls,.xlsx"'), true);
 });
 test("top history controls use back and next labels", async () => {
-  globalThis.location = { href: "https://bizyako.local/" };
+  globalThis.location = { href: "https://bizyako.local/?view=leads" };
   globalThis.history = { replaceState() {}, pushState() {} };
   globalThis.addEventListener = () => {};
   const app = { innerHTML: "" };
@@ -101,3 +101,35 @@ test("pipeline movement controls use word labels", async () => {
   assert.equal(app.innerHTML.includes('&lt;</button>'), false);
   assert.equal(app.innerHTML.includes('&gt;</button>'), false);
 });
+test("dashboard hides top back and next controls", async () => {
+  globalThis.location = { href: "https://bizyako.local/" };
+  globalThis.history = { replaceState() {}, pushState() {} };
+  globalThis.addEventListener = () => {};
+  const app = { innerHTML: "" };
+  globalThis.document = {
+    querySelector: (selector) => (selector === "#app" ? app : null),
+    querySelectorAll: () => [],
+  };
+
+  await import(`../src/app.mjs?case=${Date.now()}-dashboard-no-history`);
+
+  assert.equal(app.innerHTML.includes('data-history="back"'), false);
+  assert.equal(app.innerHTML.includes('data-history="next"'), false);
+});
+
+test("non-dashboard pages keep top back and next controls", async () => {
+  globalThis.location = { href: "https://bizyako.local/?view=leads" };
+  globalThis.history = { replaceState() {}, pushState() {} };
+  globalThis.addEventListener = () => {};
+  const app = { innerHTML: "" };
+  globalThis.document = {
+    querySelector: (selector) => (selector === "#app" ? app : null),
+    querySelectorAll: () => [],
+  };
+
+  await import(`../src/app.mjs?case=${Date.now()}-leads-history`);
+
+  assert.equal(app.innerHTML.includes('data-history="back" aria-label="back">back</button>'), true);
+  assert.equal(app.innerHTML.includes('data-history="next" aria-label="next">next</button>'), true);
+});
+

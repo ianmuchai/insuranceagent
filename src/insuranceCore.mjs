@@ -106,13 +106,18 @@ export const seedClients = [
   },
 ];
 
+export const seedEmployees = [
+  { id: "e1", name: "Peter Agent", role: "Admin", target: 600000 },
+  { id: "e2", name: "Mary Wambui", role: "User", target: 420000 },
+  { id: "e3", name: "Brian Otieno", role: "User", target: 360000 },
+];
 export const seedLeads = [
-  { id: "l1", name: "Peter Mwangi", product: "Motor Insurance - Private Car", value: 85000, source: "WhatsApp", stage: "New", lastContact: "10:31 AM" },
-  { id: "l2", name: "Jane Njeri", product: "Medical Insurance", value: 168000, source: "Referral", stage: "New", lastContact: "2 days ago" },
-  { id: "l3", name: "Kevin Omondi", product: "Motor Insurance", value: 61000, source: "Website", stage: "Follow Up", lastContact: "Yesterday" },
-  { id: "l4", name: "Daniel Otieno", product: "Life Insurance", value: 220000, source: "Call", stage: "Follow Up", lastContact: "1 day ago" },
-  { id: "l5", name: "Winnie Adhiambo", product: "Motor cover", value: 94000, source: "WhatsApp", stage: "Quotation", lastContact: "Today" },
-  { id: "l6", name: "Caroline Wafula", product: "Life cover", value: 180000, source: "Referral", stage: "Won", lastContact: "Today" },
+  { id: "l1", name: "Peter Mwangi", product: "Motor Insurance - Private Car", value: 85000, source: "WhatsApp", stage: "New", lastContact: "10:31 AM", assignedTo: "e1" },
+  { id: "l2", name: "Jane Njeri", product: "Medical Insurance", value: 168000, source: "Referral", stage: "New", lastContact: "2 days ago", assignedTo: "e2" },
+  { id: "l3", name: "Kevin Omondi", product: "Motor Insurance", value: 61000, source: "Website", stage: "Follow Up", lastContact: "Yesterday", assignedTo: "e1" },
+  { id: "l4", name: "Daniel Otieno", product: "Life Insurance", value: 220000, source: "Call", stage: "Follow Up", lastContact: "1 day ago", assignedTo: "e3" },
+  { id: "l5", name: "Winnie Adhiambo", product: "Motor cover", value: 94000, source: "WhatsApp", stage: "Quotation", lastContact: "Today", assignedTo: "e2" },
+  { id: "l6", name: "Caroline Wafula", product: "Life cover", value: 180000, source: "Referral", stage: "Won", lastContact: "Today", assignedTo: "e1" },
 ];
 
 export const fmtKES = (n) => "KES " + Math.round(n).toLocaleString("en-KE");
@@ -310,4 +315,38 @@ export function buildNotificationQueue({ clients, leads, ledger }, today = TODAY
     const rank = { high: 0, medium: 1, low: 2 };
     return rank[a.urgency] - rank[b.urgency] || a.title.localeCompare(b.title);
   });
+}
+export function renewalStatus(daysLeft) {
+  if (daysLeft < 0) return { label: `${Math.abs(daysLeft)}d overdue`, tone: "danger" };
+  if (daysLeft <= 7) return { label: `${daysLeft} days`, tone: "danger" };
+  if (daysLeft <= 30) return { label: `${daysLeft} days`, tone: "warn" };
+  return { label: `${daysLeft} days`, tone: "ok" };
+}
+
+export function buildEmployeeReports(employees, leads, ledger) {
+  return employees.map((employee) => {
+    const assignedLeads = leads.filter((lead) => lead.assignedTo === employee.id);
+    const wonLeads = assignedLeads.filter((lead) => lead.stage === "Won");
+    const pipelineValue = assignedLeads.filter((lead) => lead.stage !== "Won").reduce((sum, lead) => sum + lead.value, 0);
+    const commissionDue = ledger.filter((_, index) => index % employees.length === employees.findIndex((item) => item.id === employee.id)).reduce((sum, row) => sum + row.expected - row.paid, 0);
+    return {
+      id: employee.id,
+      name: employee.name,
+      role: employee.role,
+      assignedLeads: assignedLeads.length,
+      wonPolicies: wonLeads.length,
+      pipelineValue,
+      commissionDue,
+      targetProgress: Math.min(100, Math.round((pipelineValue / employee.target) * 100)),
+    };
+  });
+}
+
+export function updateAgentProfile(profile, changes) {
+  const role = changes.role === "Admin" ? "Admin" : "User";
+  return {
+    ...profile,
+    name: changes.name?.trim() || profile.name,
+    role,
+  };
 }

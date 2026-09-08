@@ -6,16 +6,20 @@ import {
   buildCommissionLedger,
   buildContactLinks,
   buildNotificationQueue,
+  buildEmployeeReports,
   compareQuotes,
   markCommissionPaid,
   markReminderSent,
   normalizeRoute,
   routeFromUrl,
+  renewalStatus,
   moveLeadStage,
   addLead,
   seedClients,
   seedLeads,
+  seedEmployees,
   toggleTask,
+  updateAgentProfile,
   updateSetting,
 } from "../src/insuranceCore.mjs";
 
@@ -111,4 +115,27 @@ test("notification queue covers renewals, expiries, referrals, providers, and co
   assert.equal(notifications.some((item) => item.type === "referral_follow_up"), true);
   assert.equal(notifications.some((item) => item.type === "commission_overdue"), true);
   assert.equal(notifications.some((item) => item.relevantParties.includes("Britam")), true);
+});
+test("renewal status gives clear day labels", () => {
+  assert.deepEqual(renewalStatus(-2), { label: "2d overdue", tone: "danger" });
+  assert.deepEqual(renewalStatus(5), { label: "5 days", tone: "danger" });
+  assert.deepEqual(renewalStatus(18), { label: "18 days", tone: "warn" });
+  assert.deepEqual(renewalStatus(45), { label: "45 days", tone: "ok" });
+});
+
+test("employee reports summarize per employee production", () => {
+  const reports = buildEmployeeReports(seedEmployees, seedLeads, buildCommissionLedger(seedClients));
+  const peter = reports.find((row) => row.id === "e1");
+
+  assert.equal(reports.length, 3);
+  assert.equal(peter.name, "Peter Agent");
+  assert.equal(peter.assignedLeads > 0, true);
+  assert.equal(peter.pipelineValue > 0, true);
+  assert.equal(peter.commissionDue > 0, true);
+});
+
+test("agent profile can update display name and role", () => {
+  const profile = updateAgentProfile({ name: "Peter Agent", role: "User" }, { name: "Mary Admin", role: "Admin" });
+
+  assert.deepEqual(profile, { name: "Mary Admin", role: "Admin" });
 });

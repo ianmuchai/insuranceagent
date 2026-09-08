@@ -3,6 +3,7 @@ import {
   buildCommissionLedger,
   buildContactLinks,
   buildDashboardMetrics,
+  buildEmployeeReports,
   buildNotificationQueue,
   buildRenewalRows,
   compareQuotes,
@@ -11,12 +12,15 @@ import {
   markCommissionPaid,
   markReminderSent,
   routeFromUrl,
+  renewalStatus,
   fmtKES,
   moveLeadStage,
   pipelineStages,
   seedClients,
+  seedEmployees,
   seedLeads,
   toggleTask,
+  updateAgentProfile,
   updateSetting,
 } from "./insuranceCore.mjs";
 
@@ -33,6 +37,8 @@ const state = {
   quoteResults: compareQuotes("motor", 1500000),
   clientQuery: "",
   selectedClientId: seedClients[0].id,
+  agentProfile: { name: "Peter Agent", role: "Admin" },
+  profileOpen: false,
   tasks: [
     { id: "t1", label: "Call Peter Mwangi (Motor Insurance Lead)", time: "10:30 AM", done: false },
     { id: "t2", label: "Send quotation to Kevin Omondi", time: "12:00 PM", done: false },
@@ -94,6 +100,15 @@ const navItems = [
   ["settings", "Settings", "settings"],
 ];
 
+function stepRoute(direction) {
+  const index = navItems.findIndex(([id]) => id === state.active);
+  const nextIndex = (index + direction + navItems.length) % navItems.length;
+  navigateTo(navItems[nextIndex][0]);
+}
+
+function profileEditor() {
+  return `<form class="profile-editor"><label>Name<input name="name" value="${state.agentProfile.name}" /></label><label>Role<select name="role"><option value="Admin" ${state.agentProfile.role === "Admin" ? "selected" : ""}>Admin</option><option value="User" ${state.agentProfile.role === "User" ? "selected" : ""}>User</option></select></label><button class="primary alt" type="submit">Save profile</button></form>`;
+}
 const icon = {
   home: '<svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10.5V20h14v-9.5"/><path d="M9 20v-6h6v6"/></svg>',
   users: '<svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
@@ -119,12 +134,13 @@ function render() {
           <button class="nav-item ${state.active === id ? "active" : ""}" data-nav="${id}">
             ${icon[key]}<span>${label}</span>
           </button>`).join("")}</nav>
-        <div class="agent-card"><div class="avatar">P</div><div><strong>Peter Agent</strong><small>View Profile</small></div></div>
+        <button class="agent-card" data-profile-toggle><div class="avatar">${state.agentProfile.name.charAt(0).toUpperCase()}</div><div><strong>${state.agentProfile.name}</strong><small>${state.agentProfile.role} - Edit profile</small></div></button>
+        ${state.profileOpen ? profileEditor() : ""}
       </aside>
       <main class="main">
         <header class="topbar">
           <div><h1>${state.active === "dashboard" ? "Welcome back, Peter!" : titleFor(state.active)}</h1><p>${subtitleFor(state.active)}</p></div>
-          <div class="top-actions"><button class="date-btn" data-nav="reports">${icon.calendar} 6 Sep - 6 Oct 2026</button><button class="bell" data-nav="notifications" aria-label="Open notifications">${notifications.filter((item) => !state.sentNotifications[item.id]).length}</button></div>
+          <div class="top-actions"><button class="arrow-btn" data-history="back" aria-label="Back">Back</button><button class="arrow-btn" data-history="next" aria-label="Next">Next</button><button class="date-btn" data-nav="reports">${icon.calendar} 6 Sep - 6 Oct 2026</button><button class="bell" data-nav="notifications" aria-label="Open notifications">${notifications.filter((item) => !state.sentNotifications[item.id]).length}</button></div>
         </header>
         <div class="notice" role="status">${state.notice}</div>
         ${state.active === "dashboard" ? dashboard(metrics) : ""}
@@ -157,7 +173,7 @@ function subtitleFor(id) {
     quotes: "Compare premiums and commission across insurers.",
     commissions: "Track what has been paid and what is still owed.",
     tasks: "Today's follow-ups and renewal actions.",
-    reports: "A compact view of pipeline value, premium risk, and commissions.",
+    reports: "Per-employee production, pipeline, commission, and renewal workload.",
     notifications: "Automatic reminders for expiry, referrals, renewals, and overdue commission.",
     settings: "Workspace preferences for the agent desk.",
   }[id];
@@ -242,7 +258,7 @@ function renewalsView() {
     row.type,
     row.insurer,
     fmtKES(row.premium),
-    `<span>${fmtDate(row.nextRenewal)}</span><b class="${row.daysLeft < 0 ? "danger" : "ok"}">${row.daysLeft < 0 ? `${Math.abs(row.daysLeft)}d overdue` : `${row.daysLeft} days`}</b>`,
+    `<span>${fmtDate(row.nextRenewal)}</span><b class="${renewalStatus(row.daysLeft).tone}">${renewalStatus(row.daysLeft).label}</b><small>${renewalStatus(row.daysLeft).tone === "danger" ? "Action needed" : renewalStatus(row.daysLeft).tone === "warn" ? "Watch" : "Healthy"}</small>`,
     `<div class="action-stack"><button data-reminder="${row.id}:sms">${state.reminders[`${row.id}:sms`] ? "SMS sent" : "Send SMS"}</button><button data-reminder="${row.id}:email">${state.reminders[`${row.id}:email`] ? "Email sent" : "Send email"}</button></div>`,
   ]))}</section>`;
 }
@@ -296,14 +312,14 @@ function taskList(tasks) {
 }
 
 function reportsView(metrics) {
-  return `<section class="stats-grid report-cards">${statCards(metrics)}<article class="stat-card"><small>Pipeline Value</small><strong>${fmtKES(metrics.pipelineValue)}</strong><span>Open opportunities</span></article><article class="stat-card"><small>Premium At Risk</small><strong>${fmtKES(metrics.premiumAtRisk)}</strong><span>Upcoming renewals</span></article><article class="stat-card"><small>Commission Due</small><strong>${fmtKES(metrics.outstandingCommission)}</strong><span>Unpaid ledger</span></article></section>`;
+  const employeeRows = buildEmployeeReports(seedEmployees, state.leads, state.ledger);
+  return `<section class="reports-layout"><div class="stats-grid report-cards">${statCards(metrics)}<button class="stat-card teal" data-nav="notifications"><small>Alerts</small><strong>${buildNotificationQueue({ clients: state.clients, leads: state.leads, ledger: state.ledger }).length}</strong><span>Automatic notifications</span></button></div><article class="panel report-panel"><div class="panel-title">Per Employee Performance</div>${table(["Employee", "Role", "Assigned Leads", "Won", "Pipeline", "Commission Due", "Target"], employeeRows.map((row) => [`<strong>${row.name}</strong>`, row.role, row.assignedLeads, row.wonPolicies, fmtKES(row.pipelineValue), fmtKES(row.commissionDue), `<div class="progress"><span style="width:${row.targetProgress}%"></span></div><small>${row.targetProgress}%</small>`]))}</article><article class="panel report-panel"><div class="panel-title">Insurance Agent Tool Summary</div><div class="summary-grid"><div><strong>${state.clients.length}</strong><span>Clients managed</span></div><div><strong>${insurers.length}</strong><span>Insurance providers</span></div><div><strong>${metrics.policyCount}</strong><span>Policies tracked</span></div><div><strong>${fmtKES(metrics.premiumAtRisk)}</strong><span>Premium at risk</span></div></div></article></section>`;
 }
 
 function settingsView() {
   const row = (key, label) => `<label><input type="checkbox" data-setting="${key}" ${state.settings[key] ? "checked" : ""} /> ${label}</label>`;
-  return `<section class="panel settings-grid">${row("whatsappCapture", "WhatsApp lead capture")}${row("smsReminders", "SMS renewal reminders")}${row("commissionTracking", "Commission tracking")}${row("quoteSummaries", "Auto-send quote summaries")}</section>`;
+  return `<section class="settings-page"><article class="panel settings-grid">${row("whatsappCapture", "WhatsApp lead capture")}${row("smsReminders", "SMS renewal reminders")}${row("commissionTracking", "Commission tracking")}${row("quoteSummaries", "Auto-send quote summaries")}</article><article class="panel provider-panel"><div class="panel-title">Insurance Providers Supported</div><div class="provider-grid">${insurers.map((provider) => `<div><strong>${provider.name}</strong><span>Motor ${(provider.motor * 100).toFixed(1)}%</span><span>Medical ${(provider.medical * 100).toFixed(1)}%</span><span>Life ${(provider.life * 100).toFixed(1)}%</span></div>`).join("")}</div></article></section>`;
 }
-
 
 function table(headers, rows) {
   return `<div class="table-wrap"><table><thead><tr>${headers.map((head) => `<th>${head}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
@@ -311,6 +327,8 @@ function table(headers, rows) {
 
 function bindEvents() {
   document.querySelectorAll("[data-nav]").forEach((el) => el.addEventListener("click", () => { navigateTo(el.dataset.nav); }));
+  document.querySelectorAll("[data-history]").forEach((el) => el.addEventListener("click", () => { stepRoute(el.dataset.history === "next" ? 1 : -1); }));
+  document.querySelector("[data-profile-toggle]")?.addEventListener("click", () => { state.profileOpen = !state.profileOpen; render(); });
   document.querySelectorAll("[data-move]").forEach((el) => el.addEventListener("click", () => { state.leads = moveLeadStage(state.leads, el.dataset.move, Number(el.dataset.dir)); state.notice = "Lead moved."; render(); }));
   document.querySelectorAll("[data-renewal-filter]").forEach((el) => el.addEventListener("click", () => { state.renewalFilter = el.dataset.renewalFilter; render(); }));
   document.querySelectorAll("[data-reminder]").forEach((el) => el.addEventListener("click", () => { const [policyId, channel] = el.dataset.reminder.split(":"); state.reminders = markReminderSent(state.reminders, policyId, channel); state.notice = `${channel.toUpperCase()} reminder queued.`; render(); }));
@@ -325,6 +343,14 @@ function bindEvents() {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(event.currentTarget));
     if (data.name.trim()) { state.leads = addLead(state.leads, data); state.notice = "Lead added to pipeline."; }
+    render();
+  });
+  document.querySelector(".profile-editor")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData(event.currentTarget));
+    state.agentProfile = updateAgentProfile(state.agentProfile, data);
+    state.profileOpen = false;
+    state.notice = "Profile updated.";
     render();
   });
   document.querySelector(".quote-form")?.addEventListener("submit", (event) => {
